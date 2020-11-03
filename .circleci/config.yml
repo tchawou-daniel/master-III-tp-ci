@@ -23,5 +23,28 @@ jobs:
           key: npm-v1-dependencies-{{ checksum "yarn.lock" }}
           paths:
             - ~/.cache/yarn
+  lint:
+    docker:
+      - image: cimg/node:14.10.1
+    steps:
+      - checkout
+      - restore_cache:
+        name: Restore Yarn Package Cache
+        keys:
+          - npm-v1-dependencies-{{ checksum "yarn.lock" }}
+      - run:
+          name: "Lint Code"
+          command: yarn lint && yarn format:check
+  test:
+    docker:
+      - image: cimg/node:14.10.1
+    steps:
+      - restore_cache:
+        name: Restore Yarn Package Cache
+        keys:
+          - npm-v1-dependencies-{{ checksum "yarn.lock" }}
+      - run:
+          name: "Unit test"
+          command: yarn test:ci
       
   
