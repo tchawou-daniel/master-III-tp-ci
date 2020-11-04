@@ -3,9 +3,6 @@ jobs:
   build:
     docker: 
       - image: cimg/node:14.10.1
-        auth:
-          username: mydockerhub-user
-          password: $DOCKERHUB_PASSWORD
     steps:
       - checkout
       - run:
@@ -45,7 +42,5 @@ jobs:
           keys:
             - npm-v1-dependencies-{{ checksum "yarn.lock" }}
       - run:
-          name: "Unit test"
+          name: "Unit Test"
           command: yarn test:ci
-      
-  
