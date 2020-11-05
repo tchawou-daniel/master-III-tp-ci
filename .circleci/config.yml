@@ -1,77 +1,96 @@
 version: 2.1
-jobs:
-  build:
-    docker: 
-      - image: cimg/node:14.10.1
-    steps:
-      - checkout
-      - run:
-          name: Install dependencies
-          command: yarn global add node-gyp && yarn install
-      - restore_cache:
-          name: Restore Yarn Package Cache
-          keys:
-            - npm-v1-dependencies-{{ checksum "yarn.lock" }}
-      - run:
-          name: Install Dependencies
-          command: yarn install --immutable
-      - save_cache:
-          name: Save Yarn Package Cache
-          key: npm-v1-dependencies-{{ checksum "yarn.lock" }}
-          paths:
-            - ~/.cache/yarn
-  lint:
-    docker:
-      - image: cimg/node:14.10.1
-    steps:
-      - checkout
-      - restore_cache:
-          name: Restore Yarn Package Cache
-          keys:
-            - npm-v1-dependencies-{{ checksum "yarn.lock" }}
-      - run:
-          name: "Lint Code"
-          command: yarn lint && yarn format:check
-  test:
-    docker:
-      - image: cimg/node:14.10.1
-    steps:
-      - checkout
-      - restore_cache:
-          name: Restore Yarn Package Cache
-          keys:
-            - npm-v1-dependencies-{{ checksum "yarn.lock" }}
-      - run:
-          name: "Unit Test"
-          command: yarn test:ci
-  e2e-test:
-    docker:
-      - image: cimg/node:14.10.1
-        environment:
-          DATABASE_URL: postgresql://jordan:mot_de_passe@localhost:5432/psdb
-          JWT_SECRET: mot_de_passe
-          API_PORT: 3000
-          API_HOST: localhost
-          API_PROTOCOL: http
-      - image: circleci/postgres:9-postgis-ram
-        environment:
-          POSTGRES_USER: jordan
-          POSTGRES_DB: psdb
-          POSTGRES_PASSWORD: mot_de_passe
-    steps:
-      - checkout
-      - restore_cache:
-          name: Restore Yarn Package Cache
-          keys:
-            - npm-v1-dependencies-{{ checksum "yarn.lock" }}
-      - run:
-          name: "E2e Test"
-          command: yarn test:e2e
 workflows:
-  version: 2.1
-  test-env-vars:
+  build_and_test:
     jobs:
       - build
       - lint:
           requires:
             - build
+      - test:
+          requires:
+            - build
+      - e2e-test:
+          requires:
+            - build
+      - buildandpush_docker:
+          requires:
+            - build
+jobs:
+    build:
+        docker:
+            - image: cimg/node:12.18
+        steps:
+            - checkout
+            - restore_cache:
+                name: Restore Yarn Package Cache
+                key: yarn-packages-v2{{ checksum "yarn.lock" }}
+            - run:
+                name: Install dependencies
+                command: yarn global add node-gyp && yarn install
+            - save_cache:
+                name: Save Yarn Package Cache
+                key: yarn-packages-v2{{ checksum "yarn.lock" }}
+                paths:
+                    - ./node_modules
+    lint:
+        docker:
+            - image: cimg/node:12.18
+        steps:
+            - checkout
+            - restore_cache:
+                name: Restore Yarn Package Cache
+                key: yarn-packages-v2{{ checksum "yarn.lock" }}
+            - run :
+                name: "Lint Code"
+                command: yarn lint && yarn format:check
+    test:
+        docker:
+            - image: cimg/node:12.18
+        steps:
+            - checkout
+            - restore_cache:
+                name: Restore Yarn Package Cache
+                key: yarn-packages-v2{{ checksum "yarn.lock" }}
+            - run :
+                name: "Unit Test"
+                command: yarn test:ci
+    e2e-test:
+        docker:
+            - image: cimg/node:12.18
+              environment: 
+                DATABASE_URL: "postgres://jordan:mot_de_passe@localhost:5432/psdb"
+                API_PORT: 3000
+                API_HOST: localhost
+                API_PROTOCOL: http
+                JWT_SECRET: mot_de_passe
+            - image: circleci/postgres:9.6.2-alpine
+              environment:
+                POSTGRES_USER: jordan
+                POSTGRES_DB: psdb   
+                POSTGRES_PASSWORD: mot_de_passe
+        steps: 
+            - checkout
+            - restore_cache:
+                name: Restore Yarn Package Cache
+                key: yarn-packages-v2{{ checksum "yarn.lock" }}
+            - run: 
+                name: "E2e Test"
+                command: yarn test:e2e
+    buildandpush_docker:
+        environment:
+            IMAGE_NAME: sipedaniel/my-awesome-ci-expr
+        docker:
+            - image: circleci/buildpack-deps:stretch
+        steps: 
+            - checkout
+            - setup_remote_docker
+            - run: docker image build --tag $IMAGE_NAME:app .
+            - run: docker load -i /tmp/workspace/image.tar
+            - run: 
+                name: Login and Publish to Docker Hub
+                command: |
+                    echo "$DOCKERHUB_PASS" | docker login --username sipedaniel --password-stdin 
+                    docker tag $IMAGE_NAME:app $IMAGE_NAME:$CIRCLE_BUILD_NUM
+                    docker tag $IMAGE_NAME:app $IMAGE_NAME:latest
+                    docker push $IMAGE_NAME:latest
+                    docker push $IMAGE_NAME:$CIRCLE_BUILD_NUM
