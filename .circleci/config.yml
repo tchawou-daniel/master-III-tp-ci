@@ -67,3 +67,11 @@ jobs:
       - run:
           name: "E2e Test"
           command: yarn test:e2e
+workflows:
+  version: 2.1
+  test-env-vars:
+    jobs:
+      - build
+      - lint:
+          requires:
+            - build
