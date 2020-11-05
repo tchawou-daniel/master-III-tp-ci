@@ -1,17 +1,4 @@
 version: 2.1
-workflows:
-  test-env-vars:
-    jobs:
-      - build
-      - lint:
-          requires:
-            - build
-      - test:
-          requires:
-            - build
-      - e2e-test:
-          requires:
-            - build
 jobs:
   build:
     docker: 
