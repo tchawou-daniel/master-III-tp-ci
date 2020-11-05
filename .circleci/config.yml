@@ -72,4 +72,6 @@ workflows:
   test-env-vars:
     jobs:
       - build
-      - lint
+      - lint:
+          requires:
+            - build
